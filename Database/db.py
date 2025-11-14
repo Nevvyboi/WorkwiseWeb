@@ -7,15 +7,11 @@ workwiseDatabase = "databaseWorkwise.db"
 
 
 def getDatabase() -> sqlite3.Connection:
-    conn = sqlite3.connect(workwiseDatabase, timeout=30, check_same_thread=False)
+    conn = sqlite3.connect(workwiseDatabase, timeout = 30, check_same_thread = False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     return conn
 
-
-# ----------------------------------------------------------------------
-#  DATABASE INITIALISATION + SAFE MIGRATION
-# ----------------------------------------------------------------------
 def _ensure_column_exists(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
     """Add column if it does not exist – safe to call on every start."""
     cur.execute(f"PRAGMA table_info({table})")
@@ -28,7 +24,6 @@ def initDatabase() -> None:
     conn = getDatabase()
     cur = conn.cursor()
 
-    # ---- USERS -------------------------------------------------------
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,7 +43,6 @@ def initDatabase() -> None:
         )
     """)
 
-    # ---- MIGRATE MISSING PROFILE COLUMNS -----------------------------
     for col, defn in [
         ("profile_image", "TEXT"),
         ("profile_name", "TEXT"),
@@ -60,7 +54,6 @@ def initDatabase() -> None:
     ]:
         _ensure_column_exists(cur, "users", col, defn)
 
-    # ---- CVS ---------------------------------------------------------
     cur.execute('''
         CREATE TABLE IF NOT EXISTS cvs (
             cv_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,7 +68,6 @@ def initDatabase() -> None:
         )
     ''')
 
-    # ---- QUALIFICATIONS ---------------------------------------------
     cur.execute('''
         CREATE TABLE IF NOT EXISTS qualifications (
             qualification_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,7 +86,6 @@ def initDatabase() -> None:
         )
     ''')
 
-    # ---- JOB APPLICATIONS -------------------------------------------
     cur.execute('''
         CREATE TABLE IF NOT EXISTS job_applications (
             application_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,7 +99,6 @@ def initDatabase() -> None:
         )
     ''')
 
-    # ---- SAVED JOBS -------------------------------------------------
     cur.execute('''
         CREATE TABLE IF NOT EXISTS saved_jobs (
             saved_job_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,7 +113,6 @@ def initDatabase() -> None:
         )
     ''')
 
-    # ---- UNIONS -----------------------------------------------------
     cur.execute('''
         CREATE TABLE IF NOT EXISTS unions (
             union_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -135,7 +124,6 @@ def initDatabase() -> None:
         )
     ''')
 
-    # ---- UNION MEMBERS -----------------------------------------------
     cur.execute('''
         CREATE TABLE IF NOT EXISTS union_members (
             membership_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,20 +138,54 @@ def initDatabase() -> None:
         )
     ''')
 
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS conversations (
+        conversation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT DEFAULT (datetime('now'))
+    )
+    ''')
+
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS conversation_participants (
+        conversation_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        PRIMARY KEY (conversation_id, user_id),
+        FOREIGN KEY (conversation_id) REFERENCES conversations (conversation_id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
+    )
+    ''')
+
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS messages (
+        message_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id INTEGER NOT NULL,
+        sender_id INTEGER NOT NULL,
+        body TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (conversation_id) REFERENCES conversations (conversation_id) ON DELETE CASCADE,
+        FOREIGN KEY (sender_id) REFERENCES users (user_id) ON DELETE CASCADE
+    )
+    ''')
+
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS message_reads (
+        message_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        read_at TEXT NOT NULL,
+        PRIMARY KEY (message_id, user_id),
+        FOREIGN KEY (message_id) REFERENCES messages (message_id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
+    )
+    ''')
+
     conn.commit()
     conn.close()
 
-
-# ----------------------------------------------------------------------
-#  PUBLIC HELPERS (used from main.py)
-# ----------------------------------------------------------------------
 def userExists(conn: sqlite3.Connection, username: str, email: str) -> bool:
     cur = conn.cursor()
     cur.execute("SELECT 1 FROM users WHERE username = ? OR email = ?", (username, email))
     return cur.fetchone() is not None
 
-
-# ---------- LOGIN ----------
 def getUsersDetails(conn: sqlite3.Connection, uore: str) -> Optional[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(
@@ -178,8 +200,6 @@ def getUsersDetails(conn: sqlite3.Connection, uore: str) -> Optional[Dict[str, A
     d["id"] = d.pop("user_id")
     return d
 
-
-# ---------- PROFILE ----------
 def getUserById(conn: sqlite3.Connection, user_id: int) -> Optional[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(
@@ -194,7 +214,6 @@ def getUserById(conn: sqlite3.Connection, user_id: int) -> Optional[Dict[str, An
     if not row:
         return None
     d = dict(row)
-    # Transform snake_case (DB) to camelCase (API)
     return {
         "userId": d["user_id"],
         "username": d["username"],
@@ -210,14 +229,11 @@ def getUserById(conn: sqlite3.Connection, user_id: int) -> Optional[Dict[str, An
         "updatedAt": d.get("updated_at"),
     }
 
-
-# Database/db.py
 def updateUserProfile(conn: sqlite3.Connection, profile_data: Dict[str, Any]) -> bool:
     cur = conn.cursor()
     fields: list[str] = []
     values: list[Any] = []
 
-    # Map camelCase (API) to snake_case (DB)
     field_map = {
         'profileName': 'profile_name',
         'profileBio': 'profile_bio',
@@ -250,9 +266,6 @@ def updateUserProfile(conn: sqlite3.Connection, profile_data: Dict[str, Any]) ->
     conn.commit()
     return cur.rowcount > 0
 
-# ----------------------------------------------------------------------
-#  CV HELPERS
-# ----------------------------------------------------------------------
 def _getUserCVs(conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(
@@ -267,7 +280,6 @@ def _getUserCVs(conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
     for row in rows:
         d = dict(zip(columns, row))
-        # Transform snake_case (DB) to camelCase (API)
         result.append({
             "cvId": d["cv_id"],
             "userId": d["user_id"],
@@ -323,10 +335,6 @@ def setPrimaryCV(conn: sqlite3.Connection, cv_id: int, user_id: int) -> bool:
     conn.commit()
     return cur.rowcount > 0
 
-
-# ----------------------------------------------------------------------
-#  QUALIFICATIONS
-# ----------------------------------------------------------------------
 def _getUserQualifications(conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(
@@ -344,7 +352,6 @@ def _getUserQualifications(conn: sqlite3.Connection, user_id: int) -> List[Dict[
     result: List[Dict[str, Any]] = []
     for row in rows:
         d = dict(zip(columns, row))
-        # Transform snake_case (DB) to camelCase (API)
         result.append({
             "qualificationId": d["qualification_id"],
             "userId": d["user_id"],
@@ -361,10 +368,8 @@ def _getUserQualifications(conn: sqlite3.Connection, user_id: int) -> List[Dict[
         })
     return result
 
-
 def getUserQualifications(conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
     return _getUserQualifications(conn, user_id)
-
 
 def addQualification(conn: sqlite3.Connection, qual_data: Dict[str, Any]) -> Optional[int]:
     cur = conn.cursor()
@@ -393,16 +398,10 @@ def addQualification(conn: sqlite3.Connection, qual_data: Dict[str, Any]) -> Opt
     return cur.lastrowid
 
 
-def updateQualification(
-    conn: sqlite3.Connection,
-    qualification_id: int,
-    user_id: int,
-    qual_data: Dict[str, Any],
-) -> bool:
+def updateQualification(conn: sqlite3.Connection, qualification_id: int, user_id: int, qual_data: Dict[str, Any],) -> bool:
     cur = conn.cursor()
     fields: list[str] = []
     values: list[Any] = []
-    # Map camelCase (API) to snake_case (DB)
     field_map = {
         "qualificationType": "qualification_type",
         "institution": "institution",
@@ -432,7 +431,6 @@ def updateQualification(
     conn.commit()
     return cur.rowcount > 0
 
-
 def deleteQualification(conn: sqlite3.Connection, qualification_id: int, user_id: int) -> bool:
     cur = conn.cursor()
     cur.execute(
@@ -442,23 +440,17 @@ def deleteQualification(conn: sqlite3.Connection, qualification_id: int, user_id
     conn.commit()
     return cur.rowcount > 0
 
-
-# ----------------------------------------------------------------------
-#  STATS & SAVED JOBS
-# ----------------------------------------------------------------------
 def getUserApplicationsCount(conn: sqlite3.Connection, user_id: int) -> int:
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM job_applications WHERE user_id = ?", (user_id,))
     row = cur.fetchone()
     return row[0] if row else 0
 
-
 def getUserSavedJobsCount(conn: sqlite3.Connection, user_id: int) -> int:
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM saved_jobs WHERE user_id = ?", (user_id,))
     row = cur.fetchone()
     return row[0] if row else 0
-
 
 def _getSavedJobs(conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
     cur = conn.cursor()
@@ -475,7 +467,7 @@ def _getSavedJobs(conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]
     result: List[Dict[str, Any]] = []
     for row in rows:
         d: Dict[str, Any] = dict(zip(columns, row))
-        # Transform snake_case (DB) to camelCase (API)
+
         result.append({
             "savedJobId": d["saved_job_id"],
             "userId": d["user_id"],
@@ -488,14 +480,11 @@ def _getSavedJobs(conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]
         })
     return result
 
-
 def getSavedJobs(conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
     return _getSavedJobs(conn, user_id)
 
-
 def addSavedJob(conn: sqlite3.Connection, job_data: Dict[str, Any]) -> Optional[int]:
     cur = conn.cursor()
-    # Expects camelCase keys from main.py, maps them to snake_case for DB
     cur.execute(
         """INSERT INTO saved_jobs
            (user_id, job_title, company_name, job_location,
@@ -524,22 +513,16 @@ def deleteSavedJob(conn: sqlite3.Connection, saved_job_id: int, user_id: int) ->
     conn.commit()
     return cur.rowcount > 0
 
-
-# ----------------------------------------------------------------------
-#  UNION HELPERS
-# ----------------------------------------------------------------------
 def unionExists(conn: sqlite3.Connection, register_num: str) -> bool:
     cur = conn.cursor()
     cur.execute("SELECT 1 FROM unions WHERE register_num = ?", (register_num,))
     return cur.fetchone() is not None
-
 
 def getUnions(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute("SELECT * FROM unions")
     columns = [desc[0] for desc in cur.description]
     return [dict(zip(columns, row)) for row in cur.fetchall()]
-
 
 def createUnion(conn: sqlite3.Connection, union_data: Dict[str, Any]) -> Optional[int]:
     cur = conn.cursor()
@@ -558,7 +541,6 @@ def createUnion(conn: sqlite3.Connection, union_data: Dict[str, Any]) -> Optiona
     conn.commit()
     return cur.lastrowid
 
-
 def workerInUnion(conn: sqlite3.Connection, worker_id: int, union_id: int) -> bool:
     cur = conn.cursor()
     cur.execute(
@@ -566,7 +548,6 @@ def workerInUnion(conn: sqlite3.Connection, worker_id: int, union_id: int) -> bo
         (worker_id, union_id),
     )
     return cur.fetchone() is not None
-
 
 def getUnionMembers(conn: sqlite3.Connection, union_id: Optional[int] = None) -> List[Dict[str, Any]]:
     cur = conn.cursor()
@@ -576,7 +557,6 @@ def getUnionMembers(conn: sqlite3.Connection, union_id: Optional[int] = None) ->
         cur.execute("SELECT * FROM union_members")
     columns = [desc[0] for desc in cur.description]
     return [dict(zip(columns, row)) for row in cur.fetchall()]
-
 
 def addUnionMember(conn: sqlite3.Connection, member_data: Dict[str, Any]) -> Optional[int]:
     cur = conn.cursor()
@@ -594,3 +574,82 @@ def addUnionMember(conn: sqlite3.Connection, member_data: Dict[str, Any]) -> Opt
     )
     conn.commit()
     return cur.lastrowid
+
+def createConversation(conn, participant_ids: List[int]) -> Optional[int]:
+    cur = conn.cursor()
+    # Reuse an existing 1:1 convo (optional: extend to group dedupe)
+    if len(participant_ids) == 2:
+        cur.execute("""
+          SELECT cp1.conversation_id FROM conversation_participants cp1
+          JOIN conversation_participants cp2 ON cp1.conversation_id = cp2.conversation_id
+          GROUP BY cp1.conversation_id
+          HAVING SUM(CASE WHEN cp1.user_id IN (?, ?) THEN 1 ELSE 0 END)=2
+                 AND COUNT(*)=2
+        """, (participant_ids[0], participant_ids[1]))
+        row = cur.fetchone()
+        if row:
+            return row[0]
+
+    cur.execute("INSERT INTO conversations DEFAULT VALUES")
+    cid = cur.lastrowid
+    for uid in participant_ids:
+        cur.execute("INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id) VALUES (?, ?)", (cid, uid))
+    conn.commit()
+    return cid
+
+def listUserConversations(conn, user_id: int) -> List[Dict[str, Any]]:
+    cur = conn.cursor()
+    cur.execute("""
+      SELECT c.conversation_id,
+             MAX(m.created_at) as last_message_at,
+             COUNT(m.message_id) as message_count
+      FROM conversations c
+      JOIN conversation_participants cp ON cp.conversation_id=c.conversation_id
+      LEFT JOIN messages m ON m.conversation_id=c.conversation_id
+      WHERE cp.user_id=?
+      GROUP BY c.conversation_id
+      ORDER BY COALESCE(last_message_at, c.rowid) DESC
+    """, (user_id,))
+    cols = [d[0] for d in cur.description]
+    return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+def listConversationMembers(conn, conversation_id: int) -> List[int]:
+    cur = conn.cursor()
+    cur.execute("SELECT user_id FROM conversation_participants WHERE conversation_id=?", (conversation_id,))
+    return [r[0] for r in cur.fetchall()]
+
+def userInConversation(conn, conversation_id: int, user_id: int) -> bool:
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM conversation_participants WHERE conversation_id=? AND user_id=?", (conversation_id, user_id))
+    return cur.fetchone() is not None
+
+def addMessage(conn, conversation_id: int, sender_id: int, body: str) -> Optional[int]:
+    cur = conn.cursor()
+    cur.execute("INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)", (conversation_id, sender_id, body))
+    conn.commit()
+    return cur.lastrowid
+
+def getMessages(conn, conversation_id: int, limit: int = 50, before: Optional[int] = None) -> List[Dict[str, Any]]:
+    cur = conn.cursor()
+    if before:
+        cur.execute("""
+          SELECT * FROM messages 
+          WHERE conversation_id=? AND message_id<? 
+          ORDER BY message_id DESC LIMIT ?
+        """, (conversation_id, before, limit))
+    else:
+        cur.execute("""
+          SELECT * FROM messages 
+          WHERE conversation_id=? 
+          ORDER BY message_id DESC LIMIT ?
+        """, (conversation_id, limit))
+    rows = cur.fetchall()
+    cols = [d[0] for d in cur.description]
+    # return ascending for UI
+    return list(reversed([dict(zip(cols, r)) for r in rows]))
+
+def markRead(conn, user_id: int, message_id: int) -> bool:
+    cur = conn.cursor()
+    cur.execute("INSERT OR REPLACE INTO message_reads (message_id, user_id, read_at) VALUES (?, ?, datetime('now'))", (message_id, user_id))
+    conn.commit()
+    return True

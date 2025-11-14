@@ -1,7 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 
-# ========== AUTH MODELS ==========
 class RegisterIn(BaseModel):
     username: str
     email: EmailStr
@@ -25,7 +24,6 @@ class LoginOut(BaseModel):
     email: EmailStr
     role: str
 
-# ========== PROFILE MODELS ==========
 class UserProfileOut(BaseModel):
     userId: int
     username: str
@@ -52,7 +50,6 @@ class ProfileImageUploadOut(BaseModel):
     profileImage: str
     message: str
 
-# ========== CV MODELS ==========
 class CVOut(BaseModel):
     cvId: int
     # Removed duplicate cvId field
@@ -70,7 +67,6 @@ class CVUploadOut(BaseModel):
     filePath: str
     uploadedAt: str
 
-# ========== QUALIFICATION MODELS ==========
 class QualificationIn(BaseModel):
     qualificationType: str  # e.g., "Matric", "Diploma", "Degree", "Certificate"
     institution: str
@@ -98,12 +94,10 @@ class QualificationUpdateIn(BaseModel):
     gradeOrGpa: Optional[str] = None
     description: Optional[str] = None
 
-# ========== STATS MODELS ==========
 class UserStatsOut(BaseModel):
     applicationsCount: int
     savedJobsCount: int
 
-# ========== SAVED JOBS MODELS ==========
 class SavedJobIn(BaseModel):
     jobTitle: str
     companyName: str
@@ -116,7 +110,6 @@ class SavedJobOut(SavedJobIn):
     userId: int
     savedAt: str
 
-# ========== UNION MODELS ==========
 class UnionIn(BaseModel):
     register_num: str
     sector_info: str
@@ -135,3 +128,22 @@ class UnionMemberIn(BaseModel):
 
 class UnionMemberOut(UnionMemberIn):
     membershipId: int
+
+class ConversationCreateIn(BaseModel):
+    participantIds: List[int]  # include the creator too
+
+class ConversationOut(BaseModel):
+    conversationId: int
+    lastMessageAt: Optional[str] = None
+    messageCount: int
+
+class MessageSendIn(BaseModel):
+    senderId: int
+    body: str
+
+class MessageOut(BaseModel):
+    messageId: int
+    conversationId: int
+    senderId: int
+    body: str
+    createdAt: str
