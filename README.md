@@ -1,6 +1,24 @@
 # WorkwiseWeb 🚀
 
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.10+-3776AB?logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/fastapi-0.115-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/database-SQLite-003B57?logo=sqlite&logoColor=white" alt="SQLite" />
+  <img src="https://img.shields.io/badge/hashing-Argon2-orange" alt="Argon2" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Unlicense-blue" alt="License: Unlicense" /></a>
+</p>
+
 WorkwiseWeb is the backend API for a professional networking and job-seeking application. Built with FastAPI, it provides a comprehensive set of features for user management, profile customization, job searching, and union membership tracking. The API is designed to be robust and scalable, utilizing a SQLite database for data persistence and Argon2 for secure password hashing.
+
+> 📱 It is the backend for **[Workwise](https://github.com/Nevvyboi/Workwise)**, the native Android
+> client. That app talks to every endpoint below.
+
+## 🔌 The API
+
+Eighteen endpoints across auth, profiles, CVs, qualifications, stats, saved jobs, unions and chat,
+all documented automatically at `/docs`:
+
+<p align="center"><img src="docs/screenshots/01-api-docs.png" alt="Generated OpenAPI documentation for the Workwise API" width="100%" /></p>
 
 ## Features ✨
 

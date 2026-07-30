@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import List, Optional
 
 class RegisterIn(BaseModel):
     username: str

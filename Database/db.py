@@ -13,7 +13,7 @@ def getDatabase() -> sqlite3.Connection:
     return conn
 
 def _ensure_column_exists(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
-    """Add column if it does not exist – safe to call on every start."""
+    """Add column if it does not exist - safe to call on every start."""
     cur.execute(f"PRAGMA table_info({table})")
     cols = [row[1] for row in cur.fetchall()]
     if column not in cols:
@@ -294,7 +294,7 @@ def _getUserCVs(conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
 
 
 def getUserCVs(conn: sqlite3.Connection, user_id: int) -> List[Dict[str, Any]]:
-    """Public wrapper – called from main.py."""
+    """Public wrapper - called from main.py."""
     return _getUserCVs(conn, user_id)
 
 
