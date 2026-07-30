@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from typing import Any, List, Optional
 import os
+import secrets
 import uuid
 from typing import Dict, Set
 
@@ -64,47 +65,70 @@ app = FastAPI(
 templates = Jinja2Templates(directory = "Templates")
 endpoint_token = APIKeyHeader(name = "X-Endpoint-Token")
 
-endpointTokens = {
-    # Auth
-    "POST:/v1/workwise/account": "REDACTED-ENDPOINT-TOKEN",
-    "POST:/v1/workwise/user": "REDACTED-ENDPOINT-TOKEN",
-    
-    # Profile
-    "GET:/v1/workwise/profile": "REDACTED-ENDPOINT-TOKEN",
-    "PUT:/v1/workwise/profile": "REDACTED-ENDPOINT-TOKEN",
-    "POST:/v1/workwise/profile/image": "REDACTED-ENDPOINT-TOKEN",
-    
-    # CV
-    "GET:/v1/workwise/cvs": "REDACTED-ENDPOINT-TOKEN",
-    "POST:/v1/workwise/cvs": "REDACTED-ENDPOINT-TOKEN",
-    "DELETE:/v1/workwise/cvs": "REDACTED-ENDPOINT-TOKEN",
-    "PUT:/v1/workwise/cvs/primary": "REDACTED-ENDPOINT-TOKEN",
-    
-    # Qualifications
-    "GET:/v1/workwise/qualifications": "REDACTED-ENDPOINT-TOKEN",
-    "POST:/v1/workwise/qualifications": "REDACTED-ENDPOINT-TOKEN",
-    "PUT:/v1/workwise/qualifications": "REDACTED-ENDPOINT-TOKEN",
-    "DELETE:/v1/workwise/qualifications": "REDACTED-ENDPOINT-TOKEN",
-    
-    # Stats
-    "GET:/v1/workwise/stats": "REDACTED-ENDPOINT-TOKEN",
-    
-    # Saved Jobs
-    "GET:/v1/workwise/saved-jobs": "REDACTED-ENDPOINT-TOKEN",
-    "POST:/v1/workwise/saved-jobs": "REDACTED-ENDPOINT-TOKEN",
-    "DELETE:/v1/workwise/saved-jobs": "REDACTED-ENDPOINT-TOKEN",
-    
-    # Unions
-    "GET:/v1/workwise/unions": "REDACTED-ENDPOINT-TOKEN",
-    "POST:/v1/workwise/unions": "REDACTED-ENDPOINT-TOKEN",
-    "GET:/v1/workwise/union_members": "REDACTED-ENDPOINT-TOKEN",
-    "POST:/v1/workwise/union_members": "REDACTED-ENDPOINT-TOKEN",
+# Every protected route is guarded by a shared secret sent as an X-Endpoint-Token
+# header. It is read from the environment and never lives in this repository.
+#
+#   export WORKWISE_ENDPOINT_TOKEN="a long random string"
+#
+# If the variable is unset a fresh random token is generated at startup and
+# printed once, so a clone runs out of the box without a secret in source
+# control. That generated value changes on every restart, so set the variable
+# properly for anything beyond local poking.
+ENDPOINT_TOKEN = os.environ.get("WORKWISE_ENDPOINT_TOKEN", "").strip()
 
-    "POST:/v1/workwise/chats": "REDACTED-ENDPOINT-TOKEN",
-    "GET:/v1/workwise/chats/{user_id}": "REDACTED-ENDPOINT-TOKEN",
-    "GET:/v1/workwise/chats/{conversation_id}/messages": "REDACTED-ENDPOINT-TOKEN",
-    "POST:/v1/workwise/chats/{conversation_id}/messages": "REDACTED-ENDPOINT-TOKEN",
-}
+if not ENDPOINT_TOKEN:
+    ENDPOINT_TOKEN = secrets.token_urlsafe(24)
+    print(
+        "WORKWISE_ENDPOINT_TOKEN is not set. Using a temporary token for this "
+        f"run only:\n    {ENDPOINT_TOKEN}\n"
+        "Send it as the X-Endpoint-Token header, and set the environment "
+        "variable to keep it stable."
+    )
+
+PROTECTED_ROUTES = (
+    # Auth
+    "POST:/v1/workwise/account",
+    "POST:/v1/workwise/user",
+
+    # Profile
+    "GET:/v1/workwise/profile",
+    "PUT:/v1/workwise/profile",
+    "POST:/v1/workwise/profile/image",
+
+    # CV
+    "GET:/v1/workwise/cvs",
+    "POST:/v1/workwise/cvs",
+    "DELETE:/v1/workwise/cvs",
+    "PUT:/v1/workwise/cvs/primary",
+
+    # Qualifications
+    "GET:/v1/workwise/qualifications",
+    "POST:/v1/workwise/qualifications",
+    "PUT:/v1/workwise/qualifications",
+    "DELETE:/v1/workwise/qualifications",
+
+    # Stats
+    "GET:/v1/workwise/stats",
+
+    # Saved Jobs
+    "GET:/v1/workwise/saved-jobs",
+    "POST:/v1/workwise/saved-jobs",
+    "DELETE:/v1/workwise/saved-jobs",
+
+    # Unions
+    "GET:/v1/workwise/unions",
+    "POST:/v1/workwise/unions",
+    "GET:/v1/workwise/union_members",
+    "POST:/v1/workwise/union_members",
+
+    # Chat
+    "POST:/v1/workwise/chats",
+    "GET:/v1/workwise/chats/{user_id}",
+    "GET:/v1/workwise/chats/{conversation_id}/messages",
+    "POST:/v1/workwise/chats/{conversation_id}/messages",
+)
+
+endpointTokens = {route: ENDPOINT_TOKEN for route in PROTECTED_ROUTES}
 
 def key(method: str, path: str) -> str:
     return f"{method.upper()}:{path}"

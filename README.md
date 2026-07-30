@@ -69,51 +69,46 @@ Follow these instructions to get a local copy up and running for development and
         ```
 
 3.  **Install the required dependencies:**
-    The project contains two `requirements.txt` files. Use the one located in the nested `Src` directory as it contains all necessary packages for the full feature set.
     ```sh
-    pip install -r Src/requirements.txt
+    pip install -r requirements.txt
     ```
 
-4.  **Configure Email Settings (Optional):**
-    For the password reset functionality to work, you must configure your SMTP email settings in `Src/Src/Utils/emailUtil.py`.
-    ```python
-    # Src/Src/Utils/emailUtil.py
-    
-    SMTP_SERVER = "smtp.example.com"
-    SMTP_PORT = 587
-    SENDER_EMAIL = "your-email@example.com"
-    SENDER_PASSWORD = "your-app-password" 
+4.  **Set the endpoint token:**
+    Every protected route is guarded by one shared secret, read from the environment. Generate one
+    and export it:
+    ```sh
+    export WORKWISE_ENDPOINT_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
     ```
+    Leave it unset and the app generates a throwaway token at startup and prints it, so a fresh
+    clone runs immediately. That value changes on every restart, so set it properly for anything
+    beyond local poking. **No token is stored in this repository.**
 
 5.  **Run the application:**
-    From the `Src` directory, run the FastAPI application using Uvicorn.
     ```sh
-    uvicorn Src.main:app --reload
+    uvicorn main:app --reload
     ```
     The API will be available at `http://127.0.0.1:8000`. You can access the interactive API documentation at `http://127.0.0.1:8000/docs`.
 
 ## API Usage 🔌
 
-All API endpoints are protected and require an `X-Endpoint-Token` header for authentication. The tokens are hardcoded in `Src/Src/main.py`.
+All API endpoints are protected and require an `X-Endpoint-Token` header carrying the value of
+`WORKWISE_ENDPOINT_TOKEN`.
 
 ### Example: Register a New User 📝
 
-To register a new user, you need to use the token associated with the `/v1/workwise/account` endpoint.
-
-*   **Endpoint**: `POST /v1/workwise/account`
-*   **Token**: `REDACTED-ENDPOINT-TOKEN`
-
-You can make a request using cURL:
 ```sh
 curl -X POST "http://127.0.0.1:8000/v1/workwise/account" \
 -H "Content-Type: application/json" \
--H "X-Endpoint-Token: REDACTED-ENDPOINT-TOKEN" \
+-H "X-Endpoint-Token: $WORKWISE_ENDPOINT_TOKEN" \
 -d '{
   "username": "newuser",
   "email": "newuser@example.com",
   "password": "a-strong-password"
 }'
 ```
+
+> ⚠️ One shared token is a gate, not authentication. It ships inside the Android client, so treat it
+> as a way to keep casual traffic off the API rather than as per user security.
 
 ### Main Endpoint Categories 📊
 
